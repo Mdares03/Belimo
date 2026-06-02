@@ -1,0 +1,268 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum RoleScope {
+  ALL
+  HVAC
+  BUILDING
+  CLIENT
+}
+
+model Role {
+  id          String    @id @default(cuid())
+  name        String    @unique
+  description String
+  scope       RoleScope
+  active      Boolean   @default(true)
+  createdAt   DateTime  @default(now())
+  users       User[]
+}
+
+model User {
+  id           String    @id @default(cuid())
+  username     String    @unique
+  name         String
+  email        String    @unique
+  phone        String?
+  passwordHash String?
+  roleId       String
+  role         Role      @relation(fields: [roleId], references: [id])
+  clientId     String?
+  client       Client?   @relation(fields: [clientId], references: [id])
+  buildingId   String?
+  building     Building? @relation("BuildingAdmins", fields: [buildingId], references: [id])
+  createdAt    DateTime  @default(now())
+  orgId String?
+  org   Organization? @relation(fields: [orgId], references: [id])
+}
+
+model Client {
+  id             String    @id @default(cuid())
+  name           String
+  commercialName String?
+  buildingId     String?
+  building       Building? @relation(fields: [buildingId], references: [id])
+  locales        Local[]
+  invoices       Invoice[]
+  users          User[]
+  createdAt      DateTime  @default(now())
+  orgId String?
+  org   Organization? @relation(fields: [orgId], references: [id])
+}
+
+model Building {
+  id        String          @id @default(cuid())
+  name      String
+  project   String?
+  city      String?
+  logoPath  String?
+  logoMime  String?
+  logoUpdatedAt DateTime?
+  floors    Floor[]
+  valves    Valve[]
+  locales   Local[]
+  clients   Client[]
+  periods   BillingPeriod[]
+  tariffs   Tariff[]
+  admins    User[]          @relation("BuildingAdmins")
+  createdAt DateTime        @default(now())
+  orgId String?
+  org   Organization? @relation(fields: [orgId], references: [id])
+}
+
+model Floor {
+  id          String   @id @default(cuid())
+  buildingId  String
+  building    Building @relation(fields: [buildingId], references: [id])
+  name        String
+  description String?
+  active      Boolean  @default(true)
+  valves      Valve[]
+}
+
+model Local {
+  id         String   @id @default(cuid())
+  buildingId String
+  building   Building @relation(fields: [buildingId], references: [id])
+  clientId   String?
+  client     Client?  @relation(fields: [clientId], references: [id])
+  code       String
+  valves     Valve[]
+  invoices   Invoice[]
+  computedMonthlyStatuses ComputedMonthlyStatus[]
+}
+
+enum ValveStatus {
+  OK
+  ALERTA
+  ERROR
+  OFFLINE
+}
+
+model Valve {
+  id             String      @id @default(cuid())
+  belimoId       String?     @unique
+  serial         String
+  type           String?
+  buildingId     String
+  building       Building    @relation(fields: [buildingId], references: [id])
+  floorId        String?
+  floor          Floor?      @relation(fields: [floorId], references: [id])
+  localId        String?
+  local          Local?      @relation(fields: [localId], references: [id])
+  description    String?
+  capacity       Float       @default(0)
+  status         ValveStatus @default(OK)
+  cloudConnected Boolean     @default(true)
+  lastReportAt   DateTime?
+  commandedState ValveCommandedState?
+  lastCommandAt  DateTime?
+  lastCommandBy  String?
+  lastCommandResult String?
+  readings       Reading[]
+  commandAudits  ValveCommandAudit[]
+}
+
+enum ValveCommandedState {
+  ON
+  OFF
+}
+
+model Reading {
+  id          String   @id @default(cuid())
+  valveId     String
+  valve       Valve    @relation(fields: [valveId], references: [id])
+  ts          DateTime
+  energyTonHr Float    @default(0)
+  waterM3     Float    @default(0)
+  powerTon    Float    @default(0)
+
+  @@index([valveId, ts])
+  @@unique([valveId, ts])
+}
+
+model BillingPeriod {
+  id         String    @id @default(cuid())
+  buildingId String
+  building   Building  @relation(fields: [buildingId], references: [id])
+  label      String
+  year       Int
+  startDate  DateTime
+  endDate    DateTime
+  invoices   Invoice[]
+}
+
+model Tariff {
+  id                   String   @id @default(cuid())
+  buildingId           String
+  building             Building @relation(fields: [buildingId], references: [id])
+  efficiencyKwhPerTonHr Float?
+  cfeRatePerKwh        Float?
+  includeHeating       Boolean  @default(false)
+  applyTax             Boolean  @default(true)
+  energyRate           Float
+  waterRate            Float
+  fixedCharge          Float    @default(0)
+  taxRate              Float    @default(0.16)
+  effectiveFrom        DateTime @default(now())
+}
+
+enum InvoiceStatus {
+  BORRADOR
+  GENERADA
+  ENVIADA
+  PAGADA
+  VENCIDA
+}
+
+enum ComputedPaidStatus {
+  PENDIENTE
+  PAGADO
+}
+
+model Invoice {
+  id           String        @id @default(cuid())
+  periodId     String
+  period       BillingPeriod @relation(fields: [periodId], references: [id])
+  clientId     String
+  client       Client        @relation(fields: [clientId], references: [id])
+  localId      String
+  local        Local         @relation(fields: [localId], references: [id])
+  energyTonHr  Float
+  waterM3      Float
+  energyAmount Float
+  waterAmount  Float
+  fixedCharge  Float
+  tax          Float
+  total        Float
+  status       InvoiceStatus @default(GENERADA)
+  dueDate      DateTime?
+  paidAt       DateTime?
+  createdAt    DateTime      @default(now())
+  periodStartTs DateTime?
+  periodEndTs   DateTime?
+  startReadingTs DateTime?
+  endReadingTs   DateTime?
+  startReadingId String?
+  endReadingId   String?
+  anomalies      Json?
+
+  @@index([clientId, status])
+}
+
+model ComputedMonthlyStatus {
+  id        String             @id @default(cuid())
+  localId   String
+  local     Local              @relation(fields: [localId], references: [id])
+  monthKey  String
+  status    ComputedPaidStatus @default(PENDIENTE)
+  paidAt    DateTime?
+  note      String?
+  createdAt DateTime           @default(now())
+  updatedAt DateTime           @updatedAt
+
+  @@unique([localId, monthKey])
+  @@index([monthKey])
+}
+
+enum OrgType {
+  SYSTEM   // EVAC — valve seller / super admin
+  OWNER    // building owner (dueño) — manages its buildings + tenant users
+}
+
+model Organization {
+  id           String   @id @default(cuid())
+  name         String
+  type         OrgType  @default(OWNER)
+  rfc          String?  // fiscal id (MX) — org profile
+  contactEmail String?
+  contactPhone String?
+  createdAt    DateTime @default(now())
+
+  users     User[]
+  buildings Building[]
+  clients   Client[]
+}
+
+model ValveCommandAudit {
+  id             String   @id @default(cuid())
+  valveId        String
+  valve          Valve    @relation(fields: [valveId], references: [id])
+  actorUserId    String?
+  actorRole      String?
+  requestedState ValveCommandedState
+  requestHash    String
+  endpoint       String
+  success        Boolean
+  responseStatus Int?
+  responseBody   String?
+  createdAt      DateTime @default(now())
+
+  @@index([valveId, createdAt])
+}

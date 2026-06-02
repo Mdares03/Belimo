@@ -1,0 +1,17 @@
+[Unit]
+Description=EVAC cloud Next.js app
+After=network.target postgresql.service
+
+[Service]
+Type=simple
+User=mdares
+WorkingDirectory=/home/mdares/evac-cloud
+Environment=NODE_ENV=production
+Environment=PATH=/home/mdares/.local/nodejs/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
+EnvironmentFile=/home/mdares/evac-cloud/.env
+ExecStart=/home/mdares/.local/nodejs/bin/pnpm start
+Restart=always
+RestartSec=5
+
+[Install]
+WantedBy=multi-user.target
