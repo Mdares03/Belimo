@@ -86,36 +86,6 @@ export function OwnerResumen({ data }: { data: OwnerScopedView }) {
         </div>
       </Card>
 
-      <Card className="mt-5 p-5">
-        <h3 className="text-lg font-bold">Logo del edificio (PDF y correo)</h3>
-        <div className="mt-3 flex flex-wrap items-center gap-4">
-          <div className="h-24 w-24 overflow-hidden rounded-sm border border-border bg-surface-2">
-            {data.buildingLogoUrl ? (
-              // eslint-disable-next-line @next/next/no-img-element
-              <img src={data.buildingLogoUrl} alt="Logo del edificio" className="h-full w-full object-contain" />
-            ) : (
-              <div className="grid h-full place-items-center text-xs text-ink-3">Sin logo</div>
-            )}
-          </div>
-          <form action="/api/buildings/logo" method="post" encType="multipart/form-data" className="flex flex-wrap items-center gap-2">
-            <input type="hidden" name="buildingId" value={data.buildingId} />
-            <input type="file" name="logo" accept="image/png,image/jpeg,image/svg+xml" required className="text-sm" />
-            <Button type="submit" variant="ghost">Subir / reemplazar</Button>
-          </form>
-          <button
-            type="button"
-            className="rounded-sm border border-border-2 bg-surface px-3 py-2 text-xs font-bold"
-            onClick={async () => {
-              await fetch(`/api/buildings/logo?buildingId=${encodeURIComponent(data.buildingId)}`, { method: 'DELETE' });
-              location.reload();
-            }}
-          >
-            Quitar logo
-          </button>
-        </div>
-        <p className="mt-2 text-xs text-ink-3">Formatos: PNG/JPG/SVG · máximo 2MB · dimensión máxima 4096px.</p>
-      </Card>
-
       <div className="kpi-grid mt-5 grid grid-cols-3 gap-4">
         <Card className="p-5"><div className="text-xs font-semibold text-ink-2">Por cobrar (mes cerrado)</div><div className="num mt-2 text-[32px] font-extrabold text-accent-ink">{data.kpis.due}</div></Card>
         <Card className="p-5"><div className="text-xs font-semibold text-ink-2">Cobrado (mes cerrado)</div><div className="num mt-2 text-[32px] font-extrabold text-good-ink">{data.kpis.paid}</div></Card>

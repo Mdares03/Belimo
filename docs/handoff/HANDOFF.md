@@ -346,3 +346,14 @@ Target invoice: `cmpu9pj780001kl7kkibl2mqe`.
 1. Build admin all-valve history/health views (client-independent visibility layer).
 2. Optionally rename row metric from `24h` to `Δ reciente` to remove the “only 2 readings” misread.
 3. Keep broad billing runs gated on tariff/business-policy confirmation; mechanics are proven.
+
+## 2026-06-02 — Settings reorg + real Belimo actuation confirmed
+
+(Full detail in `progress-updated.md` and `HANDOFF-feature-batch.md`, 2026-06-02 sections.)
+
+- **Config moved off the landing page:** owner building-logo upload now lives in a new Settings page `/owner/configuracion` ("Ajustes"), not on Resumen.
+- **Actuation works end-to-end** (real valve open/close), in a dedicated **password-gated Actuadores tab** (owner + admin):
+  - Belimo write seam: `POST /devices/{id}/data` body `{"datapoints":{"evcloud.30":<int>}}`; scope `public.write`; **open=4, close=1**; async (`200`/`PENDING`, applies ~2–5 min; no real-time feedback).
+  - Re-auth = login password (`AUTH_SECRET`, 5-min token). **Hard allowlist = dummy only** (`BELIMO_DUMMY_DEVICE_ID`); add a real valve's belimoId to `BELIMO_ACTUATION_ALLOWLIST` only when deliberately enabling it.
+  - **Verified no in-use valve was ever commanded** — audit log + allowlist confirm only the dummy `21932-40148-022-127`.
+- Actuation env requires a **service restart** to take effect.

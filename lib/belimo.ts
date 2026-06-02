@@ -297,31 +297,29 @@ export async function inspectDevice(deviceId: string) {
 
 
 
-export async function sendActuationCommand(args: {
-  deviceId: string;
-  state: "ON" | "OFF";
-  payload?: Record<string, unknown>;
-  pathTemplate?: string;
-  method?: string;
-}) {
+/**
+ * Actuate a Belimo Energy Valve via the confirmed write seam:
+ *   POST /devices/{id}/data  body: {"datapoints": {"evcloud.30": <int>}}
+ * The value is the RAW number (not {value:n}). The call queues an async command
+ * (HTTP 200, state "PENDING") that the device applies on its next sync — there is
+ * no synchronous confirmation, and /data only refreshes on the daily snapshot.
+ *
+ * evcloud.30 = "Override Control" (rw enum). ON/OFF codes are env-configurable so
+ * the open/close mapping can be corrected after watching the physical valve,
+ * without a code change. Requires the token to carry the `public.write` scope.
+ */
+export async function sendActuationCommand(args: { deviceId: string; state: "ON" | "OFF" }) {
   const token = await getAccessToken();
-  const template = args.pathTemplate ?? process.env.BELIMO_ACTUATION_PATH ?? "";
-  if (!template) {
-    throw new Error("BELIMO_ACTUATION_PATH no configurado.");
-  }
+  const datapoint = process.env.BELIMO_ACTUATION_DATAPOINT ?? "evcloud.30";
+  const onValue = Number(process.env.BELIMO_ACTUATION_ON_VALUE ?? "1");
+  const offValue = Number(process.env.BELIMO_ACTUATION_OFF_VALUE ?? "2");
+  const value = args.state === "ON" ? onValue : offValue;
 
-  const method = (args.method ?? process.env.BELIMO_ACTUATION_METHOD ?? "POST").toUpperCase();
-  const endpointPath = template.includes("{deviceId}")
-    ? template.replace("{deviceId}", encodeURIComponent(args.deviceId))
-    : `${template.replace(/\/$/, "")}/${encodeURIComponent(args.deviceId)}`;
-
-  const body = args.payload ?? {
-    command: "set_state",
-    state: args.state,
-  };
+  const endpointPath = `/devices/${encodeURIComponent(args.deviceId)}/data`;
+  const body = { datapoints: { [datapoint]: value } };
 
   const res = await fetch(`${API_BASE}${endpointPath}`, {
-    method,
+    method: "POST",
     headers: {
       Authorization: `Bearer ${token}`,
       Accept: "application/json",
@@ -337,6 +335,33 @@ export async function sendActuationCommand(args: {
     status: res.status,
     endpointPath,
     body: text.slice(0, 3000),
+  };
+}
+
+/** Raw, never-throwing request used by the admin actuation discovery probe.
+ *  Returns status/headers/body so an operator can find the write endpoint
+ *  without it being baked into production code paths. */
+export async function belimoProbe(args: { method: string; path: string; body?: unknown }) {
+  const token = await getAccessToken();
+  const method = args.method.toUpperCase();
+  const hasBody = args.body !== undefined && args.body !== null && method !== "GET" && method !== "OPTIONS";
+  const res = await fetch(`${API_BASE}${args.path}`, {
+    method,
+    headers: {
+      Authorization: `Bearer ${token}`,
+      Accept: "application/json",
+      ...(hasBody ? { "Content-Type": "application/json" } : {}),
+    },
+    body: hasBody ? JSON.stringify(args.body) : undefined,
+    cache: "no-store",
+  });
+  const text = await res.text();
+  return {
+    status: res.status,
+    ok: res.ok,
+    allow: res.headers.get("allow"),
+    contentType: res.headers.get("content-type"),
+    body: text.slice(0, 2000),
   };
 }
 

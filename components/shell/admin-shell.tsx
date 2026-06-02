@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { BarChart3, Building2, Gauge, LinkIcon, Shield, Users } from "lucide-react";
+import { BarChart3, Building2, Gauge, LinkIcon, Power, Shield, Users } from "lucide-react";
 import { auth } from "@/auth";
 import { Topbar } from "./topbar";
 
@@ -12,6 +12,12 @@ const nav = [
       { href: "/admin/uso", label: "Uso por edificio", icon: BarChart3 },
       { href: "/admin/edificios", label: "Edificios", icon: Building2 },
       { href: "/admin/clientes", label: "Clientes", icon: Users },
+    ],
+  },
+  {
+    group: "Control",
+    items: [
+      { href: "/admin/actuadores", label: "Actuadores", icon: Power },
     ],
   },
   {

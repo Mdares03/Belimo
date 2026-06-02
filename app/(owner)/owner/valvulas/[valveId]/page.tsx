@@ -2,7 +2,6 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { MonthlyBars } from "@/components/charts/monthly-bars";
 import { PowerLine } from "@/components/charts/power-line";
-import { OwnerValveCommand } from "@/components/owner/owner-valve-command";
 import { OwnerComputedHistoryTable } from "@/components/owner/owner-computed-history";
 import { Card, PageHead, Pill } from "@/components/ui/primitives";
 import { getOwnerValveHistory } from "@/lib/scoped-data";
@@ -67,13 +66,16 @@ export default async function OwnerValveHistoryPage({
             <div><span className="text-ink-2">Primera lectura:</span> <b>{data.valve.totalReadings ? new Date(data.valve.oldestReading).toLocaleString("es-MX") : "sin datos"}</b></div>
             <div><span className="text-ink-2">Última lectura:</span> <b>{data.valve.totalReadings ? new Date(data.valve.newestReading).toLocaleString("es-MX") : "sin datos"}</b></div>
           </div>
-          <div className="mt-4">
-            <OwnerValveCommand
-              valveId={data.valve.id}
-              commandedState={data.valve.commandedState}
-              lastCommandAt={data.valve.lastCommandAt}
-              lastCommandResult={data.valve.lastCommandResult}
-            />
+          <div className="mt-4 rounded-sm border border-border bg-surface-2 p-3">
+            <div className="flex items-center gap-2">
+              <Pill tone={data.valve.commandedState === "ON" ? "good" : data.valve.commandedState === "OFF" ? "warn" : "neutral"}>
+                Comandado: {data.valve.commandedState ?? "—"}
+              </Pill>
+              <span className="text-xs text-ink-3">{data.valve.lastCommandAt ? new Date(data.valve.lastCommandAt).toLocaleString("es-MX") : "Sin comandos previos"}</span>
+            </div>
+            <Link href={`/owner/actuadores?building=${encodeURIComponent(building ?? data.valve.buildingId)}`} className="mt-3 inline-flex items-center gap-2 text-sm font-bold text-accent-ink hover:underline">
+              Encender / apagar en Actuadores →
+            </Link>
           </div>
         </Card>
       </div>

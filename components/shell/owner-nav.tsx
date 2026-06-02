@@ -1,9 +1,9 @@
 "use client";
 import Link from "next/link";
 import { usePathname, useSearchParams } from "next/navigation";
-import { Building2, FileText, Layers, Receipt, Users, Wallet } from "lucide-react";
+import { Building2, FileText, Layers, Power, Receipt, Settings, Users, Wallet } from "lucide-react";
 
-const ICONS = { wallet: Wallet, layers: Layers, building: Building2, file: FileText, users: Users } as const;
+const ICONS = { wallet: Wallet, layers: Layers, building: Building2, file: FileText, users: Users, settings: Settings, power: Power } as const;
 type NavGroup = { group: string; items: { href: string; label: string; icon: keyof typeof ICONS }[] };
 
 export function OwnerNav({

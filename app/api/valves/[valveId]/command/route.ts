@@ -1,22 +1,11 @@
 import { createHash } from 'node:crypto';
 import { NextResponse } from 'next/server';
 import { auth } from '@/auth';
+import { actuationAllowlist, verifyActuationToken } from '@/lib/actuation-auth';
 import { sendActuationCommand } from '@/lib/belimo';
 import { prisma } from '@/lib/db';
 
 type Body = { state?: 'ON' | 'OFF' };
-
-function allowedBelimoIds() {
-  const set = new Set<string>();
-  const dummy = process.env.BELIMO_DUMMY_DEVICE_ID?.trim();
-  if (dummy) set.add(dummy);
-  const extra = (process.env.BELIMO_ACTUATION_ALLOWLIST || '')
-    .split(',')
-    .map((item) => item.trim())
-    .filter(Boolean);
-  for (const item of extra) set.add(item);
-  return set;
-}
 
 export async function POST(request: Request, context: { params: Promise<{ valveId: string }> }) {
   const { valveId } = await context.params;
@@ -26,6 +15,13 @@ export async function POST(request: Request, context: { params: Promise<{ valveI
   const role = session.user.role ?? '';
   if (role !== 'Administrador' && role !== 'Administrador Edificio') {
     return NextResponse.json({ error: 'Sin permisos.' }, { status: 403 });
+  }
+
+  // Password re-auth gate: the caller must present a valid actuation token
+  // obtained from /api/actuation/unlock by re-entering their login password.
+  const actuationToken = request.headers.get('x-actuation-token');
+  if (!verifyActuationToken(actuationToken, session.user.id)) {
+    return NextResponse.json({ error: 'Sesión de actuación expirada. Vuelve a ingresar tu contraseña.', code: 'reauth_required' }, { status: 401 });
   }
 
   const valve = await prisma.valve.findUnique({
@@ -47,16 +43,15 @@ export async function POST(request: Request, context: { params: Promise<{ valveI
   const body = (await request.json().catch(() => ({}))) as Body;
   const state = body.state === 'ON' ? 'ON' : 'OFF';
 
-  const allowlist = allowedBelimoIds();
+  const allowlist = actuationAllowlist();
   if (!allowlist.has(valve.belimoId)) {
     return NextResponse.json({ error: 'Actuación bloqueada por allowlist. Usa válvula dummy o expande BELIMO_ACTUATION_ALLOWLIST.' }, { status: 403 });
   }
 
-  const payload = { command: 'set_state', state };
-  const requestHash = createHash('sha256').update(JSON.stringify(payload)).digest('hex');
+  const requestHash = createHash('sha256').update(`${valve.belimoId}:${state}`).digest('hex');
 
   try {
-    const result = await sendActuationCommand({ deviceId: valve.belimoId, state, payload });
+    const result = await sendActuationCommand({ deviceId: valve.belimoId, state });
 
     await prisma.valveCommandAudit.create({
       data: {
@@ -104,7 +99,7 @@ export async function POST(request: Request, context: { params: Promise<{ valveI
         actorRole: role,
         requestedState: state,
         requestHash,
-        endpoint: process.env.BELIMO_ACTUATION_PATH ?? 'not_configured',
+        endpoint: `/devices/${valve.belimoId}/data`,
         success: false,
         responseBody: error instanceof Error ? error.message : String(error),
       },

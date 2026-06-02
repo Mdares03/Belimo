@@ -687,3 +687,42 @@ Required next verification: inspect per-row estimate breakdown (`energyAmount`, 
    - Regenerated Prisma client.
    - Applied migrations successfully.
    - Re-ran `npm run typecheck` after each edit batch (passing).
+
+## 2026-06-02 — Structure reorg (Settings) + real valve actuation (Belimo write seam confirmed)
+
+### Structural cleanup (config off the landing page)
+- **Owner Settings page** added: `app/(owner)/owner/configuracion/page.tsx` ("Ajustes" nav item).
+  - **Building logo upload moved here** from the Resumen first page (`components/owner/owner-resumen.tsx` logo card removed). New client component `components/owner/building-logo-manager.tsx`. Settings also links to Inquilinos.
+- Nav: new "Configuración" group in `components/shell/owner-shell.tsx` (+ icons in `owner-nav.tsx`); new "Control" group in `components/shell/admin-shell.tsx`.
+
+### Actuators → dedicated, password-gated tab (owner + admin)
+- New pages `app/(owner)/owner/actuadores/page.tsx` and `app/(admin)/admin/actuadores/page.tsx`; shared client `components/actuation/actuator-panel.tsx`.
+- Old ungated ON/OFF buttons removed from the owner valve-detail page (now a link to Actuadores); deleted `components/owner/owner-valve-command.tsx`.
+- **Re-auth gate (chosen mechanism = re-enter login password):**
+  - `lib/actuation-auth.ts` — HMAC token (5-min TTL) signed/verified with **`AUTH_SECRET`** (NextAuth v5; NOT `NEXTAUTH_SECRET` — that var is absent here, the original bug that made the gate reject every command instantly).
+  - `POST /api/actuation/unlock` verifies password (bcrypt) → returns short-lived token.
+  - `POST /api/valves/[valveId]/command` now requires header `x-actuation-token`; still role-gated (Administrador / Administrador Edificio) and allowlist-gated.
+
+### Belimo WRITE/actuation seam — discovered and CONFIRMED working
+- **Endpoint:** `POST /devices/{id}/data`  ·  **Body:** `{"datapoints": {"evcloud.30": <int>}}` (raw integer value; `{value:n}` is rejected "Invalid format"). Other paths (`/datapoints`, `/commands`) 404 for writes.
+- **Datapoint:** `evcloud.30` = "Override Control" (rw enum `1|2|3|4|5|6|7|8|11`).
+- **Open/close codes (empirically swept on the dummy, reading applied `evcloud.30` vs `evcloud.80` position):**
+  - **`4` → 100% OPEN**, **`1` → 0% CLOSED** (also: `2`→0%, `3`→~32%, `8`→100%). Wired as `BELIMO_ACTUATION_ON_VALUE=4`, `BELIMO_ACTUATION_OFF_VALUE=1`.
+- **Scope:** writing needs **`public.write`** (grantable with existing creds; added to `BELIMO_SCOPES`). Default Belimo scope is read-only.
+- **Async + slow telemetry:** a write returns `200` with an async command `state:"PENDING"`; the device applies it on its push cycle (**~2–5 min**, sometimes longer). The `/devices/{id}/data` endpoint is the **daily 02:00 snapshot**; LIVE state is `GET /devices/{id}` → `state.datapoints` (still only pushed every ~90 s–5 min, not real-time). So no instant click→move feedback over cloud.
+- `lib/belimo.ts` `sendActuationCommand` rewritten to this real format (datapoint + ON/OFF values env-configurable). Generic `BELIMO_ACTUATION_PATH/METHOD` no longer used.
+
+### Why the first UI tests "did nothing" (resolved, NOT a bug)
+- App was initially wired ON=1/OFF=2 — but **both 1 and 2 are "closed"**, so it commanded closed→closed. The open code is `4`. Fixed. The full chain (UI → gate → API → cloud → device) worked the whole time; the dummy physically opens/closes from the local Belimo web UI too.
+- BACnet was NOT blocking the cloud channel; the cloud override outranks the analog setpoint (Setpoint Source=Analog ~0 V). Device health shows `ERROR: Flow_sensor_error` (expected — valve is on a bench, not in a pipe).
+
+### Admin discovery probe (kept, in-app)
+- `POST /api/admin/actuation/probe` + UI on the admin Actuadores page (`components/actuation/actuation-probe.tsx`): admin-only, read-only discovery battery (GET/OPTIONS) + manual write attempts; **hard-restricted to the allowlisted dummy**; write attempts require the password token.
+
+### Safety: allowlist + audit (verified nothing but the dummy was touched)
+- Only `BELIMO_DUMMY_DEVICE_ID=62901482-…-3a9d36926cdb` (valve `21932-40148-022-127`) is allowlisted; `BELIMO_ACTUATION_ALLOWLIST` empty. A real valve can be commanded ONLY if its belimoId is explicitly added there.
+- Verified: `ValveCommandAudit` = 8 commands, all the dummy; only the dummy has `commandedState/lastCommandAt` set; ingest is read-only to Belimo. **No in-use valve was altered.**
+- Temp diagnostic scripts (`scripts/belimo-*.mjs`) were removed after discovery; `scripts/run-ingest.mjs` (operational) kept.
+
+### To activate / test
+- `BELIMO_*` actuation env added to `.env` → requires **service restart** (env read at process start). Then: Actuadores tab → unlock with password → Encender (override 4, opens in a few min) / Apagar (override 1, closes).

@@ -5,7 +5,8 @@ import { OwnerNav } from "./owner-nav";
 import { OwnerMobileTabs } from "./owner-mobile-tabs";
 import { Topbar } from "./topbar";
 
-const nav = [
+type NavIcon = "wallet" | "layers" | "building" | "file" | "users" | "settings" | "power";
+const nav: { group: string; items: { href: string; label: string; icon: NavIcon }[] }[] = [
   {
     group: "Mi edificio",
     items: [
@@ -14,6 +15,13 @@ const nav = [
       { href: "/owner/cobranza", label: "Consumo y cobro", icon: "building" as const },
       { href: "/owner/recibos", label: "Recibos", icon: "file" as const },
       { href: "/owner/inquilinos", label: "Inquilinos", icon: "users" as const },
+    ],
+  },
+  {
+    group: "Configuración",
+    items: [
+      { href: "/owner/actuadores", label: "Actuadores", icon: "power" as const },
+      { href: "/owner/configuracion", label: "Ajustes", icon: "settings" as const },
     ],
   },
 ];

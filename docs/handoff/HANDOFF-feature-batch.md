@@ -213,3 +213,14 @@ If DB deltas vary but UI estimate stays flat, app logic/rendering is wrong. If D
 
 MTD on day 1 can appear “broken” because fixed charge dominates. Keep this in mind for product interpretation. Consider follow-up UX improvements such as showing variable/fixed components inline or alternate time windows (e.g., trailing 30d / last complete month) if operator confusion persists.
 
+## 2026-06-02 Addendum — Item 3 (Actuation) RESOLVED + Settings reorg done
+
+(Full detail in `progress-updated.md` 2026-06-02 section.)
+
+- **Item 3 (real actuation) is confirmed working** against the dummy valve `21932-40148-022-127`.
+  - Write seam: `POST /devices/{id}/data` body `{"datapoints":{"evcloud.30":<int>}}` (raw int). Scope `public.write` required. Datapoint `evcloud.30` = Override Control. **Open=4, Close=1** (`BELIMO_ACTUATION_ON_VALUE`/`OFF_VALUE`). Async: `200`+`PENDING`, applies in ~2–5 min; no real-time feedback (telemetry is snapshot-based).
+  - Actuation lives in a **dedicated password-gated Actuadores tab** (owner + admin), re-auth via login password (`AUTH_SECRET`, 5-min token). Hard allowlist = dummy only (`BELIMO_DUMMY_DEVICE_ID`); widen via `BELIMO_ACTUATION_ALLOWLIST` per-belimoId only when a real valve is intended. Admin discovery probe retained in-app.
+- **Settings reorg (relates to the "config off the first page" ask):** owner logo upload moved from Resumen to a new `/owner/configuracion` ("Ajustes") page.
+- Belimo write-endpoint OPEN QUESTION from item 3 is now answered (no separate command endpoint — it's the datapoint write above).
+- Still open: confirm/extend the override enum semantics for any non-open/close states (`3`≈32%, etc.) if partial positioning is ever needed; decide cloud-vs-BACnet control authority for real installed valves.
+
